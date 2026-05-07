@@ -22,60 +22,86 @@ body {
     padding: 10px 20px;
     border-radius: 8px;
     margin-bottom: 15px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
     gap: 20px;
 }
 
 .header img {
     height: 50px;
+    width: auto;
+}
+
+.header h2 {
+    margin: 0;
+    color: #333;
 }
 
 #map {
     height: 600px;
     border-radius: 8px;
+    border: 1px solid #ccc;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
 }
 
 .filters {
+    margin-bottom: 15px;
     background: white;
-    padding: 10px;
-    margin-bottom: 10px;
-    display: flex;
-    gap: 10px;
-    flex-wrap: wrap;
+    padding: 15px;
     border-radius: 8px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
 }
 
-select, input {
+select,
+input {
     padding: 8px;
     border-radius: 4px;
     border: 1px solid #ddd;
+    min-width: 150px;
 }
 
-/* LEGEND */
+.range-box {
+    background: #eef2f3;
+    padding: 8px 15px;
+    border-radius: 6px;
+    border: 1px solid #ddd;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
 .legend {
     background: white;
     padding: 10px;
     border-radius: 8px;
-    width: 260px;
+    box-shadow: 0 0 5px rgba(0, 0, 0, 0.3);
+    line-height: 22px;
     max-height: 500px;
     overflow-y: auto;
+    width: 260px;
+    font-size: 11px;
 }
 
 .legend b.title {
-    font-size: 13px;
+    font-size: 12px;
     display: block;
     margin-bottom: 8px;
-    color: #d10000;
+    border-bottom: 2px solid #eee;
+    color: red;
+    line-height: 1.4;
 }
 
 .legend span {
+    cursor: pointer;
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 4px;
-    cursor: pointer;
-    font-size: 12px;
+    padding: 3px 5px;
+    border-radius: 3px;
     font-weight: bold;
-    text-transform: uppercase;
 }
 
 .legend span:hover {
@@ -86,12 +112,17 @@ select, input {
     width: 20px;
     height: 20px;
     object-fit: contain;
+    border-radius: 2px;
+    background: white;
+    border: 1px solid #f0f0f0;
 }
 
 .legend-color-box {
-    width: 14px;
-    height: 14px;
+    display: inline-block;
+    width: 16px;
+    height: 16px;
     border-radius: 3px;
+    border: 1px solid #999;
 }
 </style>
 </head>
@@ -99,29 +130,40 @@ select, input {
 <body>
 
 <div class="header">
-    <img src="logo.png">
+    <img src="logo.png" alt="Logo">
     <h2>Carte Fournisseurs Île-de-France</h2>
 </div>
 
 <div class="filters">
 
 <select id="filtreNom" onchange="filtrer()">
-<option value="">Fournisseur : Tous</option>
+    <option value="">Fournisseur : Tous</option>
 </select>
 
 <select id="filtreVille" onchange="filtrer()">
-<option value="">Ville : Toutes</option>
+    <option value="">Ville : Toutes</option>
 </select>
 
 <select id="filtreCP" onchange="filtrer()">
-<option value="">CP : Tous</option>
+    <option value="">CP : Tous</option>
 </select>
 
 <select id="filtreProduit" onchange="filtrer()">
-<option value="">Produit : Tous</option>
+    <option value="">Produit : Tous</option>
 </select>
 
-<input type="range" id="filtreRayon" min="0" max="50" value="0" oninput="filtrer()">
+<div class="range-box">
+    Rayon :
+    <input type="range" id="filtreRayon" min="0" max="50" value="0"
+        oninput="document.getElementById('rayonVal').innerText = this.value; filtrer();">
+
+    <span id="rayonVal">0</span> km
+</div>
+
+<button onclick="location.reload()"
+    style="background:#ff7675; color:white; border:none; padding:8px 15px; border-radius:4px; cursor:pointer;">
+    Reset
+</button>
 
 </div>
 
@@ -132,167 +174,154 @@ select, input {
 
 <script>
 
-var map = L.map('map').setView([48.85,2.35],9);
+var map = L.map('map').setView([48.85, 2.35], 9);
+
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
 var markers = [];
 var villesCoords = {};
 var cercleRayon = null;
-var legendControl = null;
 
 var codesCouleurs = {
-"Loxam":"blue",
-"Cemex":"grey",
-"Point P":"red",
-"Raboni":"green",
-"Fransbonhomme":"violet",
-"Clim plus":"orange",
-"LARIVIERE":"blue"
+    "ATPL CASELAS": "blue",
+    "BSM": "red",
+    "Bouvelot TP": "green",
+    "CAUPAMAT CADENZ": "violet",
+    "CHEUTIN": "orange",
+    "COLBER": "black",
+    "EVA INDUSTRIES": "red",
+    "EUROPIERRE": "blue",
+    "EVO LOCATION": "green",
+    "Fransbonhomme": "violet",
+    "GO POMPE": "orange",
+    "IDF MARQUAGE": "black",
+    "Loxam": "blue",
+    "LM DISTRIBUTION": "red",
+    "Point P": "red",
+    "pum": "black",
+    "Raboni": "green",
+    "RFM": "violet",
+    "SODEXTRA": "black",
+    "SNB": "orange",
+    "SOL 78": "grey",
+    "SPME": "blue",
+    "SCIABBARRASI RENT": "violet",
+    "Tersen": "yellow",
+    "UTD": "green",
+    "VIACOV": "red",
+    "YPREMA": "black",
+    "Cemex": "grey",
+    "Clim plus": "orange",
+    "LARIVIERE": "blue"
 };
 
 var logosMap = {
-"Loxam":"https://loxam.com/wp-content/uploads/2022/08/logo-loxam-rental.png",
-"Cemex":"https://findlogovector.com/wp-content/uploads/2018/12/cemex-logo-vector.png",
-"Point P":"Point P.png",
-"Raboni":"https://produits.batiactu.com/img/indus_auto/350-350-c/20200422_160646-raboni_2020.jpg"
+    "Loxam": "https://loxam.com/wp-content/uploads/2022/08/logo-loxam-rental.png",
+    "Point P": "Point P.png",
+    "Raboni": "https://produits.batiactu.com/img/indus_auto/350-350-c/20200422_160646-raboni_2020.jpg",
+    "Cemex": "https://findlogovector.com/wp-content/uploads/2018/12/cemex-logo-vector.png"
 };
 
-function normalize(t){
-return (t||"").toString().toLowerCase().trim();
+function normalize(str){
+    return str ? str.toString().toLowerCase().trim() : "";
 }
 
 function getIcon(color){
-return new L.Icon({
-iconUrl:`https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${color}.png`,
-shadowUrl:'https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png',
-iconSize:[25,41],
-iconAnchor:[12,41],
-popupAnchor:[1,-34],
-shadowSize:[41,41]
-});
+    return new L.Icon({
+        iconUrl:`https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${color}.png`,
+        shadowUrl:'https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png',
+        iconSize:[25,41],
+        iconAnchor:[12,41],
+        popupAnchor:[1,-34],
+        shadowSize:[41,41]
+    });
 }
 
 fetch("data.csv")
 .then(r=>r.text())
 .then(csv=>{
-Papa.parse(csv,{
-header:true,
-complete:function(res){
+    Papa.parse(csv,{
+        header:true,
+        complete:function(res){
 
-let frs=new Set(), vls=new Set(), cps=new Set(), prs=new Set();
+            res.data.forEach(row=>{
 
-res.data.forEach(row=>{
+                let lat=parseFloat(row["latitude (fournisseur)"]);
+                let lng=parseFloat(row["longitude (fournisseur)"]);
+                if(!lat||!lng) return;
 
-let lat=parseFloat(row["latitude (fournisseur)"]);
-let lng=parseFloat(row["longitude (fournisseur)"]);
+                let m=L.marker([lat,lng]).bindPopup(`
+                    <b>${row["fournisseur"]}</b><br>
+                    ${row["Produit"]}<br>
+                    ${row["ville"]}
+                `);
 
-if(!lat||!lng) return;
+                m.data=row;
+                markers.push(m);
+                m.addTo(map);
+            });
 
-let f = row["fournisseur"]?.trim();
-
-let m=L.marker([lat,lng]).bindPopup(f);
-m.data=row;
-
-markers.push(m);
-m.addTo(map);
-
-frs.add(f);
-vls.add(row["ville"]);
-cps.add(row["CP"]);
-prs.add(row["Produit"]);
-
+            ajouterLegendes();
+        }
+    });
 });
 
-fill("filtreNom",frs);
-fill("filtreVille",vls);
-fill("filtreCP",cps);
-fill("filtreProduit",prs);
+/* 🔥 LEGEND MODIFIÉE UNIQUEMENT ICI */
+function ajouterLegendes(){
 
-addLegend();
+    if(window.legend){
+        map.removeControl(window.legend);
+    }
 
-}
-});
-});
+    window.legend = L.control({position:'bottomright'});
 
-function fill(id,set){
-let s=document.getElementById(id);
-set.forEach(v=>{
-if(v){
-let o=document.createElement("option");
-o.value=v;
-o.textContent=v;
-s.appendChild(o);
-}
-});
-}
+    window.legend.onAdd=function(){
 
-/* 🔥 LEGEND UPDATED */
-function addLegend(){
+        let div=L.DomUtil.create('div','legend');
 
-if(legendControl) map.removeControl(legendControl);
+        div.innerHTML="<b class='title'>Fournisseurs</b>";
 
-legendControl=L.control({position:'bottomright'});
+        let set=new Set();
 
-legendControl.onAdd=function(){
+        markers.forEach(m=>{
+            set.add(m.data.fournisseur);
+        });
 
-let div=L.DomUtil.create('div','legend');
+        Array.from(set).sort().forEach(f=>{
 
-div.innerHTML="<b class='title'>FOURNISSEURS</b>";
+            let span=document.createElement("span");
 
-let prod=normalize(filtreProduit.value);
-let set=new Set();
+            let icon = logosMap[f]
+                ? `<img src="${logosMap[f]}" class="legend-logo">`
+                : `<div class="legend-color-box"></div>`;
 
-markers.forEach(m=>{
-let d=m.data;
+            // 🔥 MODIF ICI : MAJUSCULE
+            span.innerHTML = `${icon} ${f.toUpperCase()}`;
 
-if(!prod || normalize(d.Produit)==prod){
-set.add((d.fournisseur||"").toUpperCase());
-}
-});
+            span.onclick=()=>{
+                document.getElementById("filtreNom").value=f;
+                filtrer();
+            };
 
-Array.from(set).sort().forEach(f=>{
-let span=document.createElement("span");
+            div.appendChild(span);
+        });
 
-let icon = logosMap[f]
-? `<img src="${logosMap[f]}" class="legend-logo">`
-: `<div class="legend-color-box"></div>`;
+        return div;
+    };
 
-span.innerHTML = `${icon} ${f}`;
-
-span.onclick=()=>{
-filtreNom.value=f;
-filtrer();
-};
-
-div.appendChild(span);
-});
-
-return div;
-};
-
-legendControl.addTo(map);
+    window.legend.addTo(map);
 }
 
 function filtrer(){
-let nom=normalize(filtreNom.value);
-let ville=normalize(filtreVille.value);
-let cp=normalize(filtreCP.value);
-let prod=normalize(filtreProduit.value);
+    let nom=normalize(document.getElementById("filtreNom").value);
 
-markers.forEach(m=>{
-let d=m.data;
-let ok=true;
+    markers.forEach(m=>{
+        let d=m.data;
+        let ok=!nom || normalize(d.fournisseur)==nom;
 
-if(nom && normalize(d.fournisseur)!=nom) ok=false;
-if(ville && normalize(d.ville)!=ville) ok=false;
-if(cp && normalize(d.CP)!=cp) ok=false;
-if(prod && normalize(d.Produit)!=prod) ok=false;
-
-if(ok) m.addTo(map);
-else map.removeLayer(m);
-});
-
-addLegend();
+        if(ok) m.addTo(map);
+        else map.removeLayer(m);
+    });
 }
 
 </script>
