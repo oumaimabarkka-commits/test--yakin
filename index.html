@@ -1,100 +1,33 @@
 <!DOCTYPE html>
-<html lang="fr">
-
+<html>
 <head>
-<meta charset="utf-8" />
-<title>Carte Fournisseurs Île-de-France</title>
+<meta charset="utf-8">
+<title>Les fournisseurs de YAKIN TP</title>
 
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 
 <style>
-body {
-    font-family: 'Segoe UI', Arial, sans-serif;
-    margin: 0;
-    padding: 15px;
-    background: #f4f4f4;
-}
+body { font-family: Arial; }
+
+#map { height: 600px; margin-top:10px; }
 
 .header {
-    display: flex;
-    align-items: center;
-    background: white;
-    padding: 10px 20px;
-    border-radius: 8px;
-    margin-bottom: 15px;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-    gap: 20px;
+    text-align:center;
 }
 
-.header img { height: 50px; }
-
-#map {
-    height: 600px;
-    border-radius: 8px;
-    border: 1px solid #ccc;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+.header img {
+    height:80px;
 }
 
 .filters {
-    margin-bottom: 15px;
-    background: white;
-    padding: 15px;
-    border-radius: 8px;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    align-items: center;
+    margin:10px 0;
 }
 
-select, input {
-    padding: 8px;
-    border-radius: 4px;
-    border: 1px solid #ddd;
-}
-
-.range-box {
-    background: #eef2f3;
-    padding: 8px 15px;
-    border-radius: 6px;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-
-.legend {
-    background: white;
-    padding: 10px;
-    border-radius: 8px;
-    box-shadow: 0 0 5px rgba(0,0,0,0.3);
-    max-height: 500px;
-    overflow-y: auto;
-    width: 260px;
-    font-size: 12px;
-}
-
-.legend span {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 3px 5px;
-    cursor: pointer;
-    font-weight: bold;
-    text-transform: uppercase;
-}
-
-.legend span:hover { background: #f0f0f0; }
-
-.legend-logo {
-    width: 20px;
-    height: 20px;
-    object-fit: contain;
-}
-
-.legend-color-box {
-    width: 16px;
-    height: 16px;
-    border-radius: 3px;
-    border: 1px solid #999;
+select {
+    padding:5px;
+    margin-right:10px;
 }
 </style>
 </head>
@@ -103,153 +36,139 @@ select, input {
 
 <div class="header">
     <img src="logo.png">
-    <h2>Carte Fournisseurs Île-de-France</h2>
+    <h1>Les fournisseurs de YAKIN TP</h1>
 </div>
 
 <div class="filters">
-    <select id="filtreNom" onchange="filtrer()"><option value="">Fournisseur : Tous</option></select>
-    <select id="filtreVille" onchange="filtrer()"><option value="">Ville : Toutes</option></select>
-    <select id="filtreCP" onchange="filtrer()"><option value="">CP : Tous</option></select>
-    <select id="filtreProduit" onchange="filtrer()"><option value="">Produit : Tous</option></select>
+    <select id="filterFournisseur">
+        <option value="">Tous les fournisseurs</option>
+    </select>
 
-    <div class="range-box">
-        Rayon <input type="range" id="filtreRayon" min="0" max="50" value="0"
-        oninput="document.getElementById('rayonVal').innerText=this.value; filtrer();">
-        <span id="rayonVal">0</span> km
-    </div>
+    <select id="filterProduit">
+        <option value="">Tous les produits</option>
+    </select>
 
-    <button onclick="location.reload()">Reset</button>
+    <select id="filterVille">
+        <option value="">Toutes les villes</option>
+    </select>
+
+    <select id="filterCP">
+        <option value="">Tous les CP</option>
+    </select>
 </div>
 
 <div id="map"></div>
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
-
 <script>
 
-var map = L.map('map').setView([48.85, 2.35], 9);
+var map = L.map('map').setView([48.7, 2.3], 7);
 
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap'
+}).addTo(map);
 
 var markers = [];
-var villesCoords = {};
-var cercleRayon = null;
+var colors = {};
 
-function normalize(s){
-    return s ? s.toString().normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().trim() : "";
+function getColor(name){
+    if(!colors[name]){
+        colors[name] = "#" + Math.floor(Math.random()*16777215).toString(16);
+    }
+    return colors[name];
 }
 
-function getDistance(lat1, lon1, lat2, lon2){
-    var R=6371;
-    var dLat=(lat2-lat1)*Math.PI/180;
-    var dLon=(lon2-lon1)*Math.PI/180;
-    var a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
-    return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
-}
+Papa.parse("data.csv", {
+    download: true,
+    header: true,
+    skipEmptyLines: true,
+    complete: function(results){
 
-function getIcon(color){
-    return new L.Icon({
-        iconUrl:`https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${color}.png`,
-        shadowUrl:'https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png',
-        iconSize:[25,41], iconAnchor:[12,41]
-    });
-}
+        var data = results.data;
 
-function remplirSelect(id,set,label){
-    let s=document.getElementById(id);
-    s.innerHTML=`<option value="">${label} : Tous</option>`;
-    Array.from(set)
-    .sort((a,b)=>a.localeCompare(b,'fr',{sensitivity:'base'}))
-    .forEach(v=>{
-        let o=document.createElement("option");
-        o.value=v;
-        o.textContent=v.toUpperCase();
-        s.appendChild(o);
-    });
-}
+        var fournisseurs = new Set();
+        var produits = new Set();
+        var villes = new Set();
+        var cps = new Set();
 
-function filtrer(){
-    let nom=normalize(document.getElementById("filtreNom").value);
-    let ville=normalize(document.getElementById("filtreVille").value);
-    let cp=normalize(document.getElementById("filtreCP").value);
-    let prod=normalize(document.getElementById("filtreProduit").value);
-    let rayon=parseFloat(document.getElementById("filtreRayon").value);
+        data.forEach(row => {
 
-    markers.forEach(m=>{
-        let d=m.data;
-        let ok=true;
+            var lat = parseFloat(row["Latitude"]?.replace(",", "."));
+            var lng = parseFloat(row["Longitude"]?.replace(",", "."));
 
-        if(nom && normalize(d.f)!=nom) ok=false;
-        if(cp && normalize(d.cp)!=cp) ok=false;
-        if(prod && normalize(d.p)!=prod) ok=false;
+            if(!isNaN(lat) && !isNaN(lng)){
 
-        if(ok){
-            m.addTo(map);
-        }else{
-            map.removeLayer(m);
-        }
-    });
-}
+                fournisseurs.add(row["fournisseurs"]);
+                produits.add(row["produit"]);
+                villes.add(row["ville"]);
+                cps.add(row["CP"]);
 
-fetch("data.csv")
-.then(r=>r.text())
-.then(csv=>{
-    Papa.parse(csv,{
-        header:true,
-        skipEmptyLines:true,
-        complete:function(res){
+                var marker = L.circleMarker(
+                    [lat, lng],
+                    {color: getColor(row["fournisseurs"]), radius:8}
+                ).addTo(map);
 
-            let frs=new Set(), villes=new Set(), cps=new Set(), prods=new Set();
+                marker.bindPopup(
+                    "<b>" + row["Nom de l'agence"] + "</b><br>" +
+                    row["adresse complete"] + "<br>" +
+                    "Ville: " + row["ville"] + "<br>" +
+                    "CP: " + row["CP"] + "<br>" +
+                    "Produit: " + row["produit"] + "<br>" +
+                    "Email: " + row["email"]
+                );
 
-            res.data.forEach(row=>{
-
-                let f=row["fournisseur"];
-                let v=row["ville"];
-                let cp=row["CP"];
-                let p=row["Produit"];
-
-                let lat=parseFloat(row["latitude (fournisseur)"]?.replace(",","."));
-                let lng=parseFloat(row["longitude (fournisseur)"]?.replace(",","."));
-
-                if(!f || isNaN(lat)) return;
-
-                frs.add(f); villes.add(v); cps.add(cp); prods.add(p);
-
-                let m=L.marker([lat,lng],{icon:getIcon("blue")})
-                .bindPopup(`<b>${f.toUpperCase()}</b><br>${v}`);
-
-                m.data={f,v,cp,p,lat,lng};
-                m.addTo(map);
-                markers.push(m);
-            });
-
-            remplirSelect("filtreNom",frs,"Fournisseur");
-            remplirSelect("filtreVille",villes,"Ville");
-            remplirSelect("filtreCP",cps,"CP");
-            remplirSelect("filtreProduit",prods,"Produit");
-
-            ajouterLegende(frs);
-        }
-    });
-});
-
-function ajouterLegende(set){
-    L.control({position:'bottomright'}).onAdd=function(){
-        let div=L.DomUtil.create('div','legend');
-
-        Array.from(set)
-        .sort((a,b)=>a.localeCompare(b,'fr',{sensitivity:'base'}))
-        .forEach(f=>{
-            let span=document.createElement("span");
-            span.innerHTML=f.toUpperCase();
-            span.onclick=()=>{document.getElementById("filtreNom").value=f;filtrer();};
-            div.appendChild(span);
+                marker.data = row;
+                markers.push(marker);
+            }
         });
 
-        return div;
-    }.addTo(map);
+        function fillSelect(id, values){
+            var select = document.getElementById(id);
+            values.forEach(v=>{
+                if(v){
+                    var option = document.createElement("option");
+                    option.value = v;
+                    option.textContent = v;
+                    select.appendChild(option);
+                }
+            });
+        }
+
+        fillSelect("filterFournisseur", fournisseurs);
+        fillSelect("filterProduit", produits);
+        fillSelect("filterVille", villes);
+        fillSelect("filterCP", cps);
+
+    }
+});
+
+function filterMarkers(){
+
+    var f = document.getElementById("filterFournisseur").value;
+    var p = document.getElementById("filterProduit").value;
+    var v = document.getElementById("filterVille").value;
+    var c = document.getElementById("filterCP").value;
+
+    markers.forEach(marker=>{
+
+        var d = marker.data;
+
+        var show =
+        (f=="" || d["fournisseurs"]==f) &&
+        (p=="" || d["produit"]==p) &&
+        (v=="" || d["ville"]==v) &&
+        (c=="" || d["CP"]==c);
+
+        if(show){
+            marker.addTo(map);
+        } else {
+            map.removeLayer(marker);
+        }
+    });
 }
+
+document.querySelectorAll("select").forEach(select=>{
+    select.addEventListener("change", filterMarkers);
+});
 
 </script>
 
