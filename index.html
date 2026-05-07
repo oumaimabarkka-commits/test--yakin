@@ -266,7 +266,7 @@ fetch("data.csv")
     });
 });
 
-/* 🔥 LEGEND MODIFIÉE UNIQUEMENT ICI */
+/* 🔥 SEULE MODIFICATION ICI */
 function ajouterLegendes(){
 
     if(window.legend){
@@ -295,7 +295,7 @@ function ajouterLegendes(){
                 ? `<img src="${logosMap[f]}" class="legend-logo">`
                 : `<div class="legend-color-box"></div>`;
 
-            // 🔥 MODIF ICI : MAJUSCULE
+            // 🔥 ICI : MAJUSCULE uniquement
             span.innerHTML = `${icon} ${f.toUpperCase()}`;
 
             span.onclick=()=>{
