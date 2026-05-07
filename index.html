@@ -1,33 +1,81 @@
 <!DOCTYPE html>
-<html>
+<html lang="fr">
 <head>
-<meta charset="utf-8">
-<title>Les fournisseurs de YAKIN TP</title>
+<meta charset="utf-8"/>
+<title>Carte Fournisseurs Île-de-France</title>
 
-<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
-<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 
 <style>
-body { font-family: Arial; }
-
-#map { height: 600px; margin-top:10px; }
-
-.header {
-    text-align:center;
+body {
+    font-family: Arial;
+    margin: 0;
+    padding: 15px;
+    background: #f4f4f4;
 }
 
-.header img {
-    height:80px;
+.header {
+    display:flex;
+    align-items:center;
+    gap:15px;
+    background:white;
+    padding:10px;
+    border-radius:8px;
+    margin-bottom:10px;
+}
+
+#map {
+    height:600px;
+    border-radius:8px;
 }
 
 .filters {
-    margin:10px 0;
+    background:white;
+    padding:10px;
+    margin-bottom:10px;
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+    border-radius:8px;
 }
 
-select {
-    padding:5px;
-    margin-right:10px;
+select, input {
+    padding:6px;
+}
+
+/* LEGEND */
+.legend {
+    background:white;
+    padding:10px;
+    border-radius:8px;
+    max-height:400px;
+    overflow:auto;
+    width:240px;
+    font-size:12px;
+}
+
+.legend span {
+    display:flex;
+    align-items:center;
+    gap:8px;
+    padding:3px;
+    cursor:pointer;
+}
+
+.legend span:hover {
+    background:#f0f0f0;
+}
+
+.legend-logo {
+    width:20px;
+    height:20px;
+    object-fit:contain;
+}
+
+.legend-box {
+    width:14px;
+    height:14px;
+    border-radius:3px;
 }
 </style>
 </head>
@@ -35,140 +83,194 @@ select {
 <body>
 
 <div class="header">
-    <img src="logo.png">
-    <h1>Les fournisseurs de YAKIN TP</h1>
+    <img src="logo.png" style="height:50px;">
+    <h3>Carte Fournisseurs</h3>
 </div>
 
 <div class="filters">
-    <select id="filterFournisseur">
-        <option value="">Tous les fournisseurs</option>
+    <select id="filtreProduit" onchange="filtrer(); updateLegend();">
+        <option value="">Produit : Tous</option>
     </select>
 
-    <select id="filterProduit">
-        <option value="">Tous les produits</option>
+    <select id="filtreVille" onchange="filtrer()">
+        <option value="">Ville : Toutes</option>
     </select>
 
-    <select id="filterVille">
-        <option value="">Toutes les villes</option>
+    <select id="filtreCP" onchange="filtrer()">
+        <option value="">CP : Tous</option>
     </select>
 
-    <select id="filterCP">
-        <option value="">Tous les CP</option>
+    <select id="filtreNom" onchange="filtrer()">
+        <option value="">Fournisseur : Tous</option>
     </select>
+
+    <input type="range" id="filtreRayon" min="0" max="50" value="0" oninput="filtrer()">
 </div>
 
 <div id="map"></div>
 
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
+
 <script>
 
-var map = L.map('map').setView([48.7, 2.3], 7);
+var map = L.map('map').setView([48.85, 2.35], 9);
 
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '© OpenStreetMap'
-}).addTo(map);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
 var markers = [];
-var colors = {};
+var legendControl = null;
 
-function getColor(name){
-    if(!colors[name]){
-        colors[name] = "#" + Math.floor(Math.random()*16777215).toString(16);
-    }
-    return colors[name];
+var dataGlobal = [];
+
+function normalize(t){
+    return (t||"").toString().toLowerCase().trim();
 }
 
-Papa.parse("data.csv", {
-    download: true,
-    header: true,
-    skipEmptyLines: true,
-    complete: function(results){
+// LOAD CSV
+fetch("data.csv")
+.then(r=>r.text())
+.then(csv=>{
 
-        var data = results.data;
+    Papa.parse(csv,{
+        header:true,
+        complete:function(res){
 
-        var fournisseurs = new Set();
-        var produits = new Set();
-        var villes = new Set();
-        var cps = new Set();
+            dataGlobal = res.data;
 
-        data.forEach(row => {
+            let produits = new Set();
+            let villes = new Set();
+            let cps = new Set();
+            let fournisseurs = new Set();
 
-            var lat = parseFloat(row["Latitude"]?.replace(",", "."));
-            var lng = parseFloat(row["Longitude"]?.replace(",", "."));
+            res.data.forEach(row=>{
 
-            if(!isNaN(lat) && !isNaN(lng)){
-
-                fournisseurs.add(row["fournisseurs"]);
-                produits.add(row["produit"]);
+                produits.add(row["Produit"]);
                 villes.add(row["ville"]);
                 cps.add(row["CP"]);
+                fournisseurs.add(row["fournisseur"]);
 
-                var marker = L.circleMarker(
-                    [lat, lng],
-                    {color: getColor(row["fournisseurs"]), radius:8}
-                ).addTo(map);
+                let lat = parseFloat(row["latitude (fournisseur)"]);
+                let lng = parseFloat(row["longitude (fournisseur)"]);
 
-                marker.bindPopup(
-                    "<b>" + row["Nom de l'agence"] + "</b><br>" +
-                    row["adresse complete"] + "<br>" +
-                    "Ville: " + row["ville"] + "<br>" +
-                    "CP: " + row["CP"] + "<br>" +
-                    "Produit: " + row["produit"] + "<br>" +
-                    "Email: " + row["email"]
-                );
+                if(!lat || !lng) return;
 
-                marker.data = row;
-                markers.push(marker);
-            }
-        });
+                let m = L.marker([lat,lng])
+                .bindPopup(`
+                    <b>${row["fournisseur"]}</b><br>
+                    ${row["Produit"]}<br>
+                    ${row["ville"]}
+                `);
 
-        function fillSelect(id, values){
-            var select = document.getElementById(id);
-            values.forEach(v=>{
-                if(v){
-                    var option = document.createElement("option");
-                    option.value = v;
-                    option.textContent = v;
-                    select.appendChild(option);
-                }
+                m.data = row;
+                markers.push(m);
+                m.addTo(map);
             });
+
+            fill("filtreProduit",produits,"Produit");
+            fill("filtreVille",villes,"Ville");
+            fill("filtreCP",cps,"CP");
+            fill("filtreNom",fournisseurs,"Fournisseur");
+
+            updateLegend();
         }
+    });
 
-        fillSelect("filterFournisseur", fournisseurs);
-        fillSelect("filterProduit", produits);
-        fillSelect("filterVille", villes);
-        fillSelect("filterCP", cps);
-
-    }
 });
 
-function filterMarkers(){
-
-    var f = document.getElementById("filterFournisseur").value;
-    var p = document.getElementById("filterProduit").value;
-    var v = document.getElementById("filterVille").value;
-    var c = document.getElementById("filterCP").value;
-
-    markers.forEach(marker=>{
-
-        var d = marker.data;
-
-        var show =
-        (f=="" || d["fournisseurs"]==f) &&
-        (p=="" || d["produit"]==p) &&
-        (v=="" || d["ville"]==v) &&
-        (c=="" || d["CP"]==c);
-
-        if(show){
-            marker.addTo(map);
-        } else {
-            map.removeLayer(marker);
+// FILL SELECT
+function fill(id,set,label){
+    let s = document.getElementById(id);
+    set.forEach(v=>{
+        if(v){
+            let o=document.createElement("option");
+            o.value=v;
+            o.textContent=v;
+            s.appendChild(o);
         }
     });
 }
 
-document.querySelectorAll("select").forEach(select=>{
-    select.addEventListener("change", filterMarkers);
-});
+// FILTER MAP
+function filtrer(){
+
+    let prod = normalize(document.getElementById("filtreProduit").value);
+    let ville = normalize(document.getElementById("filtreVille").value);
+    let cp = normalize(document.getElementById("filtreCP").value);
+    let nom = normalize(document.getElementById("filtreNom").value);
+
+    markers.forEach(m=>{
+
+        let d = m.data;
+
+        let ok = true;
+
+        if(prod && normalize(d["Produit"]) != prod) ok=false;
+        if(ville && normalize(d["ville"]) != ville) ok=false;
+        if(cp && normalize(d["CP"]) != cp) ok=false;
+        if(nom && normalize(d["fournisseur"]) != nom) ok=false;
+
+        if(ok) m.addTo(map);
+        else map.removeLayer(m);
+    });
+
+    updateLegend();
+}
+
+// LEGEND SYNCHRONIZED ONLY WITH PRODUCT
+function updateLegend(){
+
+    if(legendControl){
+        map.removeControl(legendControl);
+    }
+
+    let selectedProduct = normalize(document.getElementById("filtreProduit").value);
+
+    let fournisseurs = new Set();
+
+    markers.forEach(m=>{
+        let d = m.data;
+
+        if(selectedProduct){
+
+            if(normalize(d["Produit"]) == selectedProduct){
+                fournisseurs.add(d["fournisseur"]);
+            }
+
+        } else {
+            fournisseurs.add(d["fournisseur"]);
+        }
+    });
+
+    legendControl = L.control({position:'bottomright'});
+
+    legendControl.onAdd = function(){
+
+        let div = L.DomUtil.create('div','legend');
+        div.innerHTML = "<b>Fournisseurs</b><br>";
+
+        Array.from(fournisseurs).sort().forEach(f=>{
+
+            let span = document.createElement("span");
+
+            span.innerHTML = `
+                <div class="legend-box"></div>
+                ${f}
+            `;
+
+            span.onclick = ()=> {
+                document.getElementById("filtreNom").value = f;
+                filtrer();
+            };
+
+            div.appendChild(span);
+        });
+
+        return div;
+    };
+
+    legendControl.addTo(map);
+}
 
 </script>
 
